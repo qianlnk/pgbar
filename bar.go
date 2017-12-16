@@ -80,18 +80,34 @@ func (b *Bar) SetSpeedSection(fast, slow int) {
 }
 
 func (b *Bar) Add() {
+	b.current++
+
+	lastRate := b.rate
+	lastSpeed := b.speed
+
+	b.count()
+
+	if lastRate != b.rate || lastSpeed != b.speed {
+		b.advance <- true
+	}
+
+	if b.rate >= 100 {
+		close(b.done)
+		close(b.advance)
+	}
+}
+
+func (b *Bar) count() {
 	b.mu.Lock()
 	now := time.Now()
 	nowKey := now.Format("20060102150405")
 	befKey := now.Add(time.Minute * -1).Format("20060102150405")
-	b.current++
 	b.currents[nowKey] = b.current
 	if v, ok := b.currents[befKey]; ok {
 		b.before = v
 	}
 	delete(b.currents, befKey)
-	lastRate := b.rate
-	lastSpeed := b.speed
+
 	b.rate = b.current * 100 / b.total
 	if b.cost == 0 {
 		b.speed = b.current * 100
@@ -105,14 +121,6 @@ func (b *Bar) Add() {
 		b.estimate = (b.total - b.current) * 100 / b.speed
 	}
 	b.mu.Unlock()
-	if lastRate != b.rate || lastSpeed != b.speed {
-		b.advance <- true
-	}
-
-	if b.rate >= 100 {
-		close(b.done)
-		close(b.advance)
-	}
 }
 
 func (b *Bar) updateCost() {
@@ -120,6 +128,7 @@ func (b *Bar) updateCost() {
 		select {
 		case <-time.After(time.Second):
 			b.cost++
+			b.count()
 			b.advance <- true
 		case <-b.done:
 			return
