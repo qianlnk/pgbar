@@ -80,6 +80,9 @@ func (b *Bar) SetSpeedSection(fast, slow int) {
 }
 
 func (b *Bar) Add() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	b.current++
 
 	lastRate := b.rate
@@ -98,7 +101,6 @@ func (b *Bar) Add() {
 }
 
 func (b *Bar) count() {
-	b.mu.Lock()
 	now := time.Now()
 	nowKey := now.Format("20060102150405")
 	befKey := now.Add(time.Minute * -1).Format("20060102150405")
@@ -120,7 +122,6 @@ func (b *Bar) count() {
 	if b.speed != 0 {
 		b.estimate = (b.total - b.current) * 100 / b.speed
 	}
-	b.mu.Unlock()
 }
 
 func (b *Bar) updateCost() {
@@ -128,7 +129,9 @@ func (b *Bar) updateCost() {
 		select {
 		case <-time.After(time.Second):
 			b.cost++
+			b.mu.Lock()
 			b.count()
+			b.mu.Unlock()
 			b.advance <- true
 		case <-b.done:
 			return
@@ -148,7 +151,8 @@ func (b *Bar) barMsg() string {
 	speed := fmt.Sprintf("%3.2fps", 0.01*float64(b.speed))
 	cost := b.timeFmt(b.cost)
 	estimate := b.timeFmt(b.estimate)
-	barLen := b.width - len(prefix) - len(rate) - len(speed) - len(cost) - len(estimate) - 10
+	ct := fmt.Sprintf(" (%d/%d)", b.current, b.total)
+	barLen := b.width - len(prefix) - len(rate) - len(speed) - len(cost) - len(estimate) - len(ct) - 10
 	bar1Len := barLen * b.rate / 100
 	bar2Len := barLen - bar1Len
 
@@ -158,7 +162,7 @@ func (b *Bar) barMsg() string {
 		realBar2 = ">" + bar2[:bar2Len-1]
 	}
 
-	msg := fmt.Sprintf(`%s %s [%s%s] %s %s in: %s`, prefix, rate, realBar1, realBar2, speed, cost, estimate)
+	msg := fmt.Sprintf(`%s %s%s [%s%s] %s %s in: %s`, prefix, rate, ct, realBar1, realBar2, speed, cost, estimate)
 	switch {
 	case b.speed <= b.slow*100:
 		return "\033[0;31m" + msg + "\033[0m"
