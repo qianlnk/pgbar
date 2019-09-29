@@ -79,11 +79,16 @@ func (b *Bar) SetSpeedSection(fast, slow int) {
 	}
 }
 
-func (b *Bar) Add() {
+func (b *Bar) Add(n ...int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.current++
+	step := 1
+	if len(n) > 0 {
+		step = n[0]
+	}
+
+	b.current += step
 
 	lastRate := b.rate
 	lastSpeed := b.speed

@@ -21,7 +21,7 @@ func main() {
 	b3.SetSpeedSection(900, 100)
 
 	pgbar.Println("独立进度条")
-	b4 := pgbar.NewBar(0, "4st", 4000)
+	b4 := pgbar.NewBar(0, "4st", 4000*3)
 	var wg sync.WaitGroup
 	wg.Add(4)
 	go func() {
@@ -50,7 +50,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 4000; i++ {
-			b4.Add()
+			b4.Add(3)
 			time.Sleep(time.Second / 300)
 		}
 	}()
