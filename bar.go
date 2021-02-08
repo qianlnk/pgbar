@@ -23,6 +23,10 @@ type Bar struct {
 	estimate int
 	fast     int
 	slow     int
+	srcUnit  string
+	dstUnit  string
+	change   int
+	closed   bool
 }
 
 var (
@@ -62,6 +66,7 @@ func NewBar(line int, prefix string, total int) *Bar {
 		advance:  make(chan bool),
 		done:     make(chan bool),
 		currents: make(map[string]int),
+		change:   1,
 	}
 
 	initBar(bar.width)
@@ -69,6 +74,16 @@ func NewBar(line int, prefix string, total int) *Bar {
 	go bar.run()
 
 	return bar
+}
+
+func (b *Bar) SetUnit(src string, dst string, change int) {
+	b.srcUnit = src
+	b.dstUnit = dst
+	b.change = change
+
+	if b.change == 0 {
+		b.change = 1
+	}
 }
 
 func (b *Bar) SetSpeedSection(fast, slow int) {
@@ -99,7 +114,8 @@ func (b *Bar) Add(n ...int) {
 		b.advance <- true
 	}
 
-	if b.rate >= 100 {
+	if b.rate >= 100 && !b.closed {
+		b.closed = true
 		close(b.done)
 		close(b.advance)
 	}
@@ -151,9 +167,20 @@ func (b *Bar) run() {
 }
 
 func (b *Bar) barMsg() string {
+	unit := ""
+	change := 1
+	if b.srcUnit != "" {
+		unit = b.srcUnit
+	}
+
+	if b.dstUnit != "" {
+		unit = b.dstUnit
+		change = b.change
+	}
+
 	prefix := fmt.Sprintf("%s", b.prefix)
 	rate := fmt.Sprintf("%3d%%", b.rate)
-	speed := fmt.Sprintf("%3.2fps", 0.01*float64(b.speed))
+	speed := fmt.Sprintf("%3.2f %s ps", 0.01*float64(b.speed)/float64(change), unit)
 	cost := b.timeFmt(b.cost)
 	estimate := b.timeFmt(b.estimate)
 	ct := fmt.Sprintf(" (%d/%d)", b.current, b.total)
